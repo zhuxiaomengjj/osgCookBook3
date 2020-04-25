@@ -71,17 +71,10 @@ namespace osgCookBook {
 		virtual bool handle(const osgGA::GUIEventAdapter& ea,
 			osgGA::GUIActionAdapter& aa)
 		{
-			auto et = ea.getEventType();
-			auto bt = ea.getButton();
-			auto mk = (ea.getModKeyMask() & osgGA::GUIEventAdapter::MODKEY_CTRL);
-			printf("\n%d, %d, %d", int(et), int(bt), int(mk));
-
-
 			if (ea.getEventType() != osgGA::GUIEventAdapter::RELEASE
 				|| ea.getButton() != osgGA::GUIEventAdapter::LEFT_MOUSE_BUTTON
 				|| !(ea.getModKeyMask() & osgGA::GUIEventAdapter::MODKEY_CTRL))
 				return false;
-
 
 			osgViewer::View* viewer = dynamic_cast<osgViewer::View*>(&aa);
 			if (viewer)
@@ -132,36 +125,6 @@ public:
 	osg::observer_ptr<osg::Drawable> _drawable1;
 	osg::observer_ptr<osg::Drawable> _drawable2;
 };
-
-osg::Node* createRoot() {
-	// Create the text and place it in an HUD camera
-	osgText::Text* text = osgCookBook::createText(osg::Vec3(
-		0.50f, 0.50f, 0.5f), "", 10.0f);
-	osg::ref_ptr<osg::Geode> textGeode = new osg::Geode;
-	textGeode->addDrawable(text);
-	//osg::ref_ptr<osg::Camera> hudCamera =
-	//	osgCookBook::createHUDCamera(0, 800, 0, 600);
-	//hudCamera->addChild(textGeode.get());
-	// Create two simple shapes and add both, as well as the camera,
-	// to the root node
-	osg::ref_ptr<osg::Geode> geode = new osg::Geode;
-	geode->addDrawable(new osg::ShapeDrawable(new
-		osg::Box(osg::Vec3(-2.0f, 0.0f, 0.0f), 1.0f)));
-	geode->addDrawable(new osg::ShapeDrawable(new osg::Sphere(osg::Vec3(2.0f, 0.0f, 0.0f), 1.0f)));
-	osg::ref_ptr<osg::Group> root = new osg::Group;
-	//root->addChild(hudCamera.get());
-	root->addChild(textGeode);
-	root->addChild(geode.get());
-
-	osg::ref_ptr<ObserveShapeCallback> observerCB =
-		new ObserveShapeCallback;
-	observerCB->_text = text;
-	observerCB->_drawable1 = geode->getDrawable(0);
-	observerCB->_drawable2 = geode->getDrawable(1);
-	root->addUpdateCallback(observerCB.get());
-
-	return root.release();
-}
 
 int main(int argc, char** argv)
 {
