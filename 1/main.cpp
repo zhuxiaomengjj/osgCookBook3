@@ -28,6 +28,7 @@
 #include <osg/Material>
 #include <osgGA/EventQueue>
 #include <osgGA/TrackballManipulator>
+#include <osg/MatrixTransform>
 
 #include <osgText/Font>
 #include <osgText/Text>
@@ -111,6 +112,28 @@ class RemoveShapeHandler : public osgCookBook::PickHandler
 	}
 };
 
+class SetShapeColorHandler : public osgCookBook::PickHandler
+{
+	virtual void doUserOperations(osgUtil::LineSegmentIntersector
+		::Intersection& result)
+	{
+		osg::ShapeDrawable* shape = dynamic_cast<osg::ShapeDrawable*>
+			(result.drawable.get());
+		if (shape) shape->setColor(osg::Vec4(
+			1.0f, 1.0f, 1.0f, 2.0f) - shape->getColor());
+	}
+};
+
+osg::Node* createMatrixTransform(osg::Geode* geode,
+	const osg::Vec3& pos)
+{
+	osg::ref_ptr<osg::MatrixTransform> trans =
+		new osg::MatrixTransform;
+	trans->setMatrix(osg::Matrix::translate(pos));
+	trans->addChild(geode);
+	return trans.release();
+}
+
 class ObserveShapeCallback : public osg::NodeCallback
 {
 public:
@@ -128,29 +151,28 @@ public:
 
 int main(int argc, char** argv)
 {
-	osgText::Text* text = osgCookBook::createText(osg::Vec3(50.0f, 50.0f, 0.0f), "", 10.0f);
-	osg::ref_ptr<osg::Geode> textGeode = new osg::Geode;
-	textGeode->addDrawable(text);
+	osg::ref_ptr<osg::ShapeDrawable> shape = new osg::ShapeDrawable(
+		new osg::Sphere);
+	shape->setColor(osg::Vec4(1.0f, 1.0f, 0.0f, 1.0f));
+	shape->setDataVariance(osg::Object::DYNAMIC);
+	shape->setUseDisplayList(false);
 
-	osg::ref_ptr<osg::Camera> hudCamera = osgCookBook::createHUDCamera(0, 800, 0, 600);
-	hudCamera->addChild(textGeode.get());
-
-	osg::ref_ptr<osg::Geode> geode = new osg::Geode;
-	geode->addDrawable(new osg::ShapeDrawable(new osg::Box(osg::Vec3(-2.0f, 0.0f, 0.0f), 1.0f)));
-	geode->addDrawable(new osg::ShapeDrawable(new osg::Sphere(osg::Vec3(2.0f, 0.0f, 0.0f), 1.0f)));
-
+	osg::ref_ptr<osg::Geode> geode1 = new osg::Geode;
+	geode1->addDrawable(shape.get());
+	osg::ref_ptr<osg::Geode> geode2 = dynamic_cast<osg::Geode*>(
+		geode1->clone(osg::CopyOp::SHALLOW_COPY));
+	osg::ref_ptr<osg::Geode> geode3 = dynamic_cast<osg::Geode*>(
+		geode1->clone(osg::CopyOp::DEEP_COPY_ALL));
 	osg::ref_ptr<osg::Group> root = new osg::Group;
-	root->addChild(hudCamera.get());
-	root->addChild(geode.get());
-
-	osg::ref_ptr<ObserveShapeCallback> observerCB = new ObserveShapeCallback;
-	observerCB->_text = text;
-	observerCB->_drawable1 = geode->getDrawable(0);
-	observerCB->_drawable2 = geode->getDrawable(1);
-	root->addUpdateCallback(observerCB.get());
+	root->addChild(createMatrixTransform(geode1.get(),
+		osg::Vec3(0.0f, 0.0f, 0.0f)));
+	root->addChild(createMatrixTransform(geode2.get(),
+		osg::Vec3(-2.0f, 0.0f, 0.0f)));
+	root->addChild(createMatrixTransform(geode3.get(),
+		osg::Vec3(2.0f, 0.0f, 0.0f)));
 
 	osgViewer::Viewer viewer;
-	viewer.addEventHandler(new RemoveShapeHandler);
+	viewer.addEventHandler(new SetShapeColorHandler);
 	viewer.setSceneData(root.get());
 	return viewer.run();
 }
