@@ -111,7 +111,7 @@ int main(int argc, char** argv)
 	boundingBoxNode->getOrCreateStateSet()->setAttributeAndModes(
 		new osg::PolygonMode(osg::PolygonMode::FRONT_AND_BACK,
 			osg::PolygonMode::LINE));
-	boundingBoxNode->getOrCreateStateSet()->setMode(
+	boundingBoxNode->getOrCreateStateSet()->setMode(   
 		GL_LIGHTING, osg::StateAttribute::OFF);
 
 	osg::ref_ptr<osg::Group> root = new osg::Group;
