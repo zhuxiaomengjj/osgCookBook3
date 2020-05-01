@@ -19,105 +19,97 @@
 #include <stdio.h>
 #include <iostream>
 
-#include <osg/ComputeBoundsVisitor>
 #include <osg/ShapeDrawable>
 #include <osg/AnimationPath>
 #include <osg/MatrixTransform>
-#include <osg/PolygonMode>
 #include <osgDB/ReadFile>
 #include <osgViewer/Viewer>
 
-class BoundingBoxCallback : public osg::NodeCallback
+osg::MatrixTransform* createTransformNode(osg::Drawable*
+	shape, const osg::Matrix& matrix)
 {
-public:
-	virtual void operator()(osg::Node* node, osg::NodeVisitor* nv)
-	{
-		osg::BoundingBox bb;
-		for (unsigned int i = 0; i < _nodesToCompute.size(); ++i)
-		{
-			osg::Node* node = _nodesToCompute[i];
-			osg::ComputeBoundsVisitor cbbv;
-			node->accept(cbbv);
-			osg::BoundingBox localBB = cbbv.getBoundingBox();
-			osg::Matrix localToWorld = osg::computeLocalToWorld(
-				node->getParent(0)->getParentalNodePaths()[0]);
-			for (unsigned int i = 0; i < 8; ++i)
-				bb.expandBy(localBB.corner(i) * localToWorld);
-		}
+	osg::ref_ptr<osg::Geode> geode = new osg::Geode;
+	geode->addDrawable(shape);
+	osg::ref_ptr<osg::MatrixTransform> trans =
+		new osg::MatrixTransform;
+	trans->addChild(geode.get());
+	trans->setMatrix(matrix);
+	return trans.release();
+}
 
-		osg::MatrixTransform* trans =
-			static_cast<osg::MatrixTransform*>(node);
-		trans->setMatrix(
-			osg::Matrix::scale(bb.xMax() - bb.xMin(), bb.yMax() - bb.yMin(),
-				bb.zMax() - bb.zMin()) *
-			osg::Matrix::translate(bb.center()));
-	}
-	osg::NodePath _nodesToCompute;
-};
-
-osg::AnimationPath* createAnimationPath(float radius, float time)
+osg::AnimationPathCallback* createWheelAnimation(
+	const osg::Vec3& base)
 {
-	osg::ref_ptr<osg::AnimationPath> path =
+	osg::ref_ptr<osg::AnimationPath> wheelPath =
 		new osg::AnimationPath;
-	path->setLoopMode(osg::AnimationPath::LOOP);
-	unsigned int numSamples = 32;
-	float delta_yaw = 2.0f * osg::PI / ((float)numSamples - 1.0f);
-	float delta_time = time / (float)numSamples;
-	for (unsigned int i = 0; i < numSamples; ++i)
-	{
-		float yaw = delta_yaw * (float)i;
-		osg::Vec3 pos(sinf(yaw)*radius, cosf(yaw)*radius, 0.0f);
-		osg::Quat rot(-yaw, osg::Z_AXIS);
-		path->insert(delta_time * (float)i,
-			osg::AnimationPath::ControlPoint(pos, rot));
-	}
-	return path.release();
+	wheelPath->setLoopMode(osg::AnimationPath::LOOP);
+	wheelPath->insert(0.0, osg::AnimationPath::ControlPoint(
+		base, osg::Quat()));
+	wheelPath->insert(0.01, osg::AnimationPath::ControlPoint(
+		base + osg::Vec3(0.0f, 0.02f, 0.0f), osg::Quat(
+			osg::PI_2, osg::Z_AXIS)));
+	wheelPath->insert(0.02, osg::AnimationPath::ControlPoint(
+		base + osg::Vec3(0.0f, -0.02f, 0.0f), osg::Quat(
+			osg::PI, osg::Z_AXIS)));
+
+	osg::ref_ptr<osg::AnimationPathCallback> apcb =
+		new osg::AnimationPathCallback;
+	apcb->setAnimationPath(wheelPath.get());
+	return apcb.release();
 }
 
 
 int main(int argc, char** argv)
 {
-	osg::ref_ptr<osg::MatrixTransform> cessna =
-		new osg::MatrixTransform;
-	cessna->addChild(
-		osgDB::readNodeFile("cessna.osgt.0,0,90.rot"));
-	osg::ref_ptr<osg::AnimationPathCallback> apcb =
-		new osg::AnimationPathCallback;
-	apcb->setAnimationPath(createAnimationPath(50.0f, 6.0f));
-	cessna->setUpdateCallback(apcb.get());
-	osg::ref_ptr<osg::MatrixTransform> dumptruck =
-		new osg::MatrixTransform;
-	dumptruck->addChild(osgDB::readNodeFile("dumptruck.osgt"));
-	dumptruck->setMatrix(osg::Matrix::translate(0.0f, 0.0f, -100.0f));
-	osg::ref_ptr<osg::MatrixTransform> models =
-		new osg::MatrixTransform;
-	models->addChild(cessna.get());
-	models->addChild(dumptruck.get());
-	models->setMatrix(osg::Matrix::translate(0.0f, 0.0f, 200.0f));
+	// The prototype of the main rod
+	osg::ref_ptr<osg::ShapeDrawable> mainRodShape =
+		new osg::ShapeDrawable(new osg::Cylinder(
+			osg::Vec3(), 0.4f, 10.0f));
+	// The prototype of the coupling (wheel) rod
+	osg::ref_ptr<osg::ShapeDrawable> wheelRodShape =
+		new osg::ShapeDrawable(new osg::Cylinder(
+			osg::Vec3(), 0.4f, 8.0f));
+	// The prototypes of the wheel and the car body
+	osg::ref_ptr<osg::ShapeDrawable> wheelShape =
+		new osg::ShapeDrawable(new osg::Cylinder(
+			osg::Vec3(), 2.0f, 1.0f));
 
+	osg::ref_ptr<osg::ShapeDrawable> bodyShape =
+		new osg::ShapeDrawable(new osg::Box(
+			osg::Vec3(), 6.0f, 4.0f, 14.0f));
 
-	osg::ref_ptr<BoundingBoxCallback> bbcb =
-		new BoundingBoxCallback;
-	bbcb->_nodesToCompute.push_back(cessna.get());
-	bbcb->_nodesToCompute.push_back(dumptruck.get());
+	osg::MatrixTransform* wheel1 = createTransformNode(
+		wheelShape.get(), osg::Matrix::translate(0.0f, 0.0f, -4.0f));
+	wheel1->setUpdateCallback(
+		createWheelAnimation(osg::Vec3(0.0f, 0.0f, -4.0f)));
+	osg::MatrixTransform* wheel2 = createTransformNode(
+		wheelShape.get(), osg::Matrix::translate(0.0f, 0.0f, 4.0f));
+	wheel2->setUpdateCallback(
+		createWheelAnimation(osg::Vec3(0.0f, 0.0f, 4.0f)));
 
-	osg::ref_ptr<osg::Geode> geode = new osg::Geode;
-	geode->addDrawable(new osg::ShapeDrawable(new osg::Box));
-	osg::ref_ptr<osg::MatrixTransform> boundingBoxNode =
-		new osg::MatrixTransform;
+	osg::MatrixTransform* wheelRod1 = createTransformNode(
+		wheelRodShape.get(),
+		osg::Matrix::rotate(osg::Z_AXIS, osg::X_AXIS) *
+		osg::Matrix::translate(0.0f, 0.0f, -5.0f));
+	wheelRod1->addChild(wheel1);
+	wheelRod1->addChild(wheel2);
 
-	boundingBoxNode->addChild(geode.get());
-	boundingBoxNode->setUpdateCallback(bbcb.get());
-	boundingBoxNode->getOrCreateStateSet()->setAttributeAndModes(
-		new osg::PolygonMode(osg::PolygonMode::FRONT_AND_BACK,
-			osg::PolygonMode::LINE));
-	boundingBoxNode->getOrCreateStateSet()->setMode(   
-		GL_LIGHTING, osg::StateAttribute::OFF);
+	osg::MatrixTransform* wheelRod2 =
+		static_cast<osg::MatrixTransform*>(
+			wheelRod1->clone(osg::CopyOp::SHALLOW_COPY));
+	wheelRod2->setMatrix(osg::Matrix::rotate(osg::Z_AXIS,
+		osg::X_AXIS) * osg::Matrix::translate(0.0f, 0.0f, 5.0f));
+
+	osg::MatrixTransform* body = createTransformNode(
+		bodyShape.get(), osg::Matrix::translate(0.0f, 2.2f, 0.0f));
+	osg::MatrixTransform* mainRod = createTransformNode(
+		mainRodShape.get(), osg::Matrix::identity());
+	mainRod->addChild(wheelRod1);
+	mainRod->addChild(wheelRod2);
+	mainRod->addChild(body);
 
 	osg::ref_ptr<osg::Group> root = new osg::Group;
-	root->addChild(models.get());
-	root->addChild(osgDB::readNodeFile("lz.osgt"));
-	root->addChild(boundingBoxNode.get());
+	root->addChild(mainRod);
 	osgViewer::Viewer viewer;
 	viewer.setSceneData(root.get());
 	return viewer.run();
