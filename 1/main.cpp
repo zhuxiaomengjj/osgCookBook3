@@ -1,57 +1,63 @@
-/*
- * =====================================================================================
- *
- *       Filename:  main.cpp
- *
- *    Description: Minimalistic project example that uses both Qt and OpenSceneGraph libraries.
- *
- *        Version:  1.0
- *        Created:  30-Jun-16 10:23:06 AM
- *       Revision:  none
- *       Compiler:  gcc
- *
- *         Author:  Victoria Rudakova (vicrucann@gmail.com),
- *   Organization:  vicrucann.github.io
- *
- * =====================================================================================
- */
-#include <stdlib.h>
-#include <stdio.h>
+#include <osg/NodeVisitor>
+#include <deque>
+#include <osgDB/ReadFile>
+#include <osgUtil/PrintVisitor>
 #include <iostream>
 
-#include <osg/ClipNode>
-#include <osg/MatrixTransform>
-#include <osgDB/ReadFile>
-#include <osgViewer/Viewer>
 
+class BFSVisitor : public osg::NodeVisitor
+{
+public:
+	BFSVisitor() { setTraversalMode(TRAVERSE_ALL_CHILDREN); }
+	virtual void reset() { _pendingNodes.clear(); }
+	virtual void apply(osg::Node& node) { traverseBFS(node); }
+protected:
+	virtual ~BFSVisitor() {}
+	void traverseBFS(osg::Node& node);
+	std::deque<osg::Node*> _pendingNodes;
+};
 
+void BFSVisitor::traverseBFS(osg::Node& node)
+{
+	osg::Group* group = node.asGroup();
+	if (!group) return;
+	for (unsigned int i = 0; i < group->getNumChildren(); ++i)
+	{
+		_pendingNodes.push_back(group->getChild(i));
+	}
 
-int main(int argc, char** argv)
+	while (_pendingNodes.size() > 0)
+	{
+		osg::Node* node = _pendingNodes.front();
+		_pendingNodes.pop_front();
+		node->accept(*this);
+	}
+}
+
+class BFSPrintVisitor : public BFSVisitor
+{
+public:
+	virtual void apply(osg::Node& node)
+	{
+		std::cout << node.libraryName() << "::"
+			<< node.className() << std::endl;
+		traverseBFS(node);
+	}
+};
+
+int main(int argc, char *argv[])
 {
 	osg::ArgumentParser arguments(&argc, argv);
-	osg::ref_ptr<osg::Node> scene = osgDB::readNodeFiles(
-		arguments);
-	if (!scene) scene = osgDB::readNodeFile("cessna.osg");
+	osg::ref_ptr<osg::Node> root = osgDB::readNodeFiles(arguments);
+	if (!root) root = osgDB::readNodeFile("cow.osg");
 
-	float z = -10.0f;
-	osg::ref_ptr<osg::MatrixTransform> reverse =
-		new osg::MatrixTransform;
-	reverse->postMult(osg::Matrix::translate(0.0f, 0.0f, -z) *
-		osg::Matrix::scale(1.0f, 1.0f, -1.0f) *
-		osg::Matrix::translate(0.0f, 0.0f, z));
-	reverse->addChild(scene.get());
+	std::cout << "DFS Visitor traversal: " << std::endl;
+	osgUtil::PrintVisitor pv(std::cout);
+	root->accept(pv);
+	std::cout << std::endl;
 
-	osg::ref_ptr<osg::ClipPlane> clipPlane = new osg::ClipPlane;
-	clipPlane->setClipPlane(0.0, 0.0, -1.0, z);
-	clipPlane->setClipPlaneNum(0);
-	osg::ref_ptr<osg::ClipNode> clipNode = new osg::ClipNode;
-	clipNode->addClipPlane(clipPlane.get());
-	clipNode->addChild(reverse.get());
-
-	osg::ref_ptr<osg::Group> root = new osg::Group;
-	root->addChild(scene.get());
-	root->addChild(clipNode.get());
-	osgViewer::Viewer viewer;
-	viewer.setSceneData(root.get());
-	return viewer.run();
+	std::cout << "BFS Visitor traversal: " << std::endl;
+	BFSPrintVisitor bpv;
+	root->accept(bpv);
+	return 0;
 }
