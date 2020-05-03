@@ -1,63 +1,43 @@
-#include <osg/NodeVisitor>
-#include <deque>
+#include <osg/Geometry>
+#include <osg/Geode>
+#include <osg/Depth>
+#include <osg/Texture2D>
 #include <osgDB/ReadFile>
-#include <osgUtil/PrintVisitor>
-#include <iostream>
-
-
-class BFSVisitor : public osg::NodeVisitor
-{
-public:
-	BFSVisitor() { setTraversalMode(TRAVERSE_ALL_CHILDREN); }
-	virtual void reset() { _pendingNodes.clear(); }
-	virtual void apply(osg::Node& node) { traverseBFS(node); }
-protected:
-	virtual ~BFSVisitor() {}
-	void traverseBFS(osg::Node& node);
-	std::deque<osg::Node*> _pendingNodes;
-};
-
-void BFSVisitor::traverseBFS(osg::Node& node)
-{
-	osg::Group* group = node.asGroup();
-	if (!group) return;
-	for (unsigned int i = 0; i < group->getNumChildren(); ++i)
-	{
-		_pendingNodes.push_back(group->getChild(i));
-	}
-
-	while (_pendingNodes.size() > 0)
-	{
-		osg::Node* node = _pendingNodes.front();
-		_pendingNodes.pop_front();
-		node->accept(*this);
-	}
-}
-
-class BFSPrintVisitor : public BFSVisitor
-{
-public:
-	virtual void apply(osg::Node& node)
-	{
-		std::cout << node.libraryName() << "::"
-			<< node.className() << std::endl;
-		traverseBFS(node);
-	}
-};
+#include <osgViewer/Viewer>
 
 int main(int argc, char *argv[])
 {
-	osg::ArgumentParser arguments(&argc, argv);
-	osg::ref_ptr<osg::Node> root = osgDB::readNodeFiles(arguments);
-	if (!root) root = osgDB::readNodeFile("osgcool.osgt");
+	osg::ref_ptr<osg::Texture2D> texture = new osg::Texture2D;
+	osg::ref_ptr<osg::Image> image = osgDB::readImageFile(
+		"Images/osg256.png");
+	texture->setImage(image.get());
+	osg::ref_ptr<osg::Drawable> quad =
+		osg::createTexturedQuadGeometry(osg::Vec3(),
+			osg::Vec3(1.0f, 0.0f, 0.0f), osg::Vec3(0.0f, 1.0f, 0.0f));
+	quad->getOrCreateStateSet()->setTextureAttributeAndModes(
+		0, texture.get());
+	osg::ref_ptr<osg::Geode> geode = new osg::Geode;
+	geode->addDrawable(quad.get());
 
-	std::cout << "DFS Visitor traversal: " << std::endl;
-	osgUtil::PrintVisitor pv(std::cout);
-	root->accept(pv);
-	std::cout << std::endl;
+	osg::ref_ptr<osg::Camera> camera = new osg::Camera;
+	camera->setCullingActive(false);
+	camera->setClearMask(0);
+	camera->setAllowEventFocus(false);
+	camera->setReferenceFrame(osg::Transform::ABSOLUTE_RF);
+	camera->setRenderOrder(osg::Camera::POST_RENDER);
+	camera->setProjectionMatrix(osg::Matrix::ortho2D(
+		0.0, 1.0, 0.0, 1.0));
+	camera->addChild(geode.get());
 
-	std::cout << "BFS Visitor traversal: " << std::endl;
-	BFSPrintVisitor bpv;
-	root->accept(bpv);
-	return 0;
+	osg::StateSet* ss = camera->getOrCreateStateSet();
+	ss->setMode(GL_LIGHTING, osg::StateAttribute::OFF);
+	ss->setAttributeAndModes(new osg::Depth(
+		osg::Depth::LEQUAL, 1.0, 1.0));
+
+	osg::ref_ptr<osg::Group> root = new osg::Group;
+	root->addChild(camera.get());
+	root->addChild(osgDB::readNodeFile("cessna.osg"));
+	osgViewer::Viewer viewer;
+	viewer.setSceneData(root.get());
+	return viewer.run();
 }
