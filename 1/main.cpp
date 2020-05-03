@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
 {
 	osg::ArgumentParser arguments(&argc, argv);
 	osg::ref_ptr<osg::Node> root = osgDB::readNodeFiles(arguments);
-	if (!root) root = osgDB::readNodeFile("cow.osg");
+	if (!root) root = osgDB::readNodeFile("osgcool.osgt");
 
 	std::cout << "DFS Visitor traversal: " << std::endl;
 	osgUtil::PrintVisitor pv(std::cout);
