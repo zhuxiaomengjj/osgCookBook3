@@ -1,154 +1,104 @@
-#include <osg/GL>
-#include <GL/glu.h>
+#include <osg/AnimationPath>
+#include <osg/Geometry>
 #include <osg/Geode>
-#include <osg/Texture2D>
-#include <osgDB/ReadFile>
+#include <osg/MatrixTransform>
 #include <osgViewer/Viewer>
 
-class NurbsSurface : public osg::Drawable
+osg::Node* createNeedle(float w, float h, float depth,
+	const osg::Vec4& color, float angle, double period)
 {
-public:
-	NurbsSurface()
-		: _sCount(0), _tCount(0), _sOrder(0), _tOrder(0),
-		_nurbsObj(0) {}
-	NurbsSurface(const NurbsSurface& copy,
-		osg::CopyOp copyop = osg::CopyOp::SHALLOW_COPY);
-	META_Object(osg, NurbsSurface);
-	
-	void setVertexArray(osg::Vec3Array* va) { _vertices = va; }
-	void setNormalArray(osg::Vec3Array* na) { _normals = na; }
-	void setTexCoordArray(osg::Vec2Array* ta) {
-		_texcoords = ta;
-	}
+	osg::ref_ptr<osg::Vec3Array> vertices = new osg::Vec3Array(5);
+	(*vertices)[0].set(-h * 0.5f, 0.0f, -w * 0.1f);
+	(*vertices)[1].set(h*0.5f, 0.0f, -w * 0.1f);
+	(*vertices)[2].set(-h * 0.5f, 0.0f, w*0.8f);
+	(*vertices)[3].set(h*0.5f, 0.0f, w*0.8f);
+	(*vertices)[4].set(0.0f, 0.0f, w*0.9f);
+	osg::ref_ptr<osg::Vec3Array> normals = new osg::Vec3Array(1);
+	(*normals)[0].set(0.0f, -1.0f, 0.0f);
+	osg::ref_ptr<osg::Vec4Array> colors = new osg::Vec4Array(1);
+	(*colors)[0] = color;
+	osg::ref_ptr<osg::Geometry> geom = new osg::Geometry;
+	geom->setVertexArray(vertices.get());
+	geom->setNormalArray(normals.get());
+	geom->setNormalBinding(osg::Geometry::BIND_OVERALL);
+	geom->setColorArray(colors.get());
+	geom->setColorBinding(osg::Geometry::BIND_OVERALL);
+	geom->addPrimitiveSet(new osg::DrawArrays(
+		GL_TRIANGLE_STRIP, 0, 5));
+	osg::ref_ptr<osg::Geode> geode = new osg::Geode;
+	geode->addDrawable(geom.get());
 
-	void setKnots(osg::FloatArray* sknots,
-		osg::FloatArray* tknots)
-	{
-		_sKnots = sknots; _tKnots = tknots;
-	}
-	void setCounts(int s, int t) { _sCount = s; _tCount = t; }
-	void setOrders(int s, int t) { _sOrder = s; _tOrder = t; }
-
-	virtual osg::BoundingBox computeBoundingBox() const;
-	virtual void drawImplementation(osg::RenderInfo&
-		renderInfo) const;
-
-protected:
-	virtual ~NurbsSurface() {}
-	osg::ref_ptr<osg::Vec3Array> _vertices;
-	osg::ref_ptr<osg::Vec3Array> _normals;
-	osg::ref_ptr<osg::Vec2Array> _texcoords;
-	osg::ref_ptr<osg::FloatArray> _sKnots;
-	osg::ref_ptr<osg::FloatArray> _tKnots;
-	int _sCount, _tCount;
-	int _sOrder, _tOrder;
-	mutable void* _nurbsObj;
-};
-
-NurbsSurface::NurbsSurface(const NurbsSurface& copy,
-	osg::CopyOp copyop)
-	: osg::Drawable(copy, copyop), _vertices(copy._vertices),
-	_normals(copy._normals), _texcoords(copy._texcoords),
-	_sKnots(copy._sKnots), _tKnots(copy._tKnots),
-	_sOrder(copy._sOrder), _tOrder(copy._tOrder),
-	_nurbsObj(copy._nurbsObj)
-{}
-
-osg::BoundingBox NurbsSurface::computeBoundingBox() const
-{
-	osg::BoundingBox bb;
-	if (_vertices.valid())
-	{
-		for (unsigned int i = 0; i < _vertices->size(); ++i)
-			bb.expandBy((*_vertices)[i]);
-	}
-	return bb;
+	osg::ref_ptr<osg::MatrixTransform> trans =
+		new osg::MatrixTransform;
+	trans->addChild(geode.get());
+	osg::ref_ptr<osg::AnimationPath> clockPath =
+		new osg::AnimationPath;
+	clockPath->setLoopMode(osg::AnimationPath::LOOP);
+	clockPath->insert(0.0, osg::AnimationPath::ControlPoint(
+		osg::Vec3(0.0f, depth, 0.0f), osg::Quat(angle, osg::Y_AXIS)));
+	clockPath->insert(period*0.5, osg::AnimationPath::ControlPoint(
+		osg::Vec3(0.0f, depth, 0.0f), osg::Quat(angle + osg::PI,
+			osg::Y_AXIS)));
+	clockPath->insert(period, osg::AnimationPath::ControlPoint(
+		osg::Vec3(0.0f, depth, 0.0f), osg::Quat(angle + osg::PI*2.0f,
+			osg::Y_AXIS)));
+	osg::ref_ptr<osg::AnimationPathCallback> apcb =
+		new osg::AnimationPathCallback;
+	apcb->setAnimationPath(clockPath.get());
+	trans->addUpdateCallback(apcb.get());
+	return trans.release();
 }
 
-void NurbsSurface::drawImplementation(osg::RenderInfo&
-	renderInfo) const
+osg::Node* createFace(float radius)
 {
-	GLUnurbsObj* theNurbs = (GLUnurbsObj*)_nurbsObj;
-	if (!theNurbs)
+	osg::ref_ptr<osg::Vec3Array> vertices =
+		new osg::Vec3Array(67);
+	(*vertices)[0].set(0.0f, 0.0f, 0.0f);
+	for (unsigned int i = 1; i <= 65; ++i)
 	{
-		theNurbs = gluNewNurbsRenderer();
-		gluNurbsProperty(theNurbs, GLU_SAMPLING_TOLERANCE, 10);
-		gluNurbsProperty(theNurbs, GLU_DISPLAY_MODE, GLU_FILL);
-		_nurbsObj = theNurbs;
+		float angle = (float)(i - 1) * osg::PI / 32.0f;
+		(*vertices)[i].set(radius * cosf(angle), 0.0f,
+			radius * sinf(angle));
 	}
-
-	if (_vertices.valid() && _sKnots.valid() && _tKnots.valid())
-	{
-		glEnable(GL_MAP2_NORMAL);
-		glEnable(GL_MAP2_TEXTURE_COORD_2);
-		gluBeginCurve(theNurbs);
-		if (_texcoords.valid())
-		{
-			gluNurbsSurface(theNurbs, _sKnots->size(),
-				&((*_sKnots)[0]), _tKnots->size(), &((*_tKnots)[0]),
-				_sCount * 2, 2, &((*_texcoords)[0][0]), _sOrder, _tOrder,
-				GL_MAP2_TEXTURE_COORD_2);
-		}
-		if (_normals.valid())
-		{
-			gluNurbsSurface(theNurbs, _sKnots->size(),
-				&((*_sKnots)[0]), _tKnots->size(), &((*_tKnots)[0]),
-				_sCount * 3, 3, &((*_normals)[0][0]), _sOrder, _tOrder,
-				GL_MAP2_NORMAL);
-		}
-		gluNurbsSurface(theNurbs, _sKnots->size(),
-			&((*_sKnots)[0]), _tKnots->size(), &((*_tKnots)[0]),
-			_sCount * 3, 3, &((*_vertices)[0][0]), _sOrder, _tOrder,
-			GL_MAP2_VERTEX_3);
-		gluEndCurve(theNurbs);
-		glDisable(GL_MAP2_NORMAL);
-		glDisable(GL_MAP2_TEXTURE_COORD_2);
-	}
+	osg::ref_ptr<osg::Vec3Array> normals = new osg::Vec3Array(1);
+	(*normals)[0].set(0.0f, -1.0f, 0.0f);
+	osg::ref_ptr<osg::Vec4Array> colors = new osg::Vec4Array(1);
+	(*colors)[0].set(1.0f, 1.0f, 1.0f, 1.0f);
+	// Avoid color state inheriting
+	osg::ref_ptr<osg::Geometry> geom = new osg::Geometry;
+	geom->setVertexArray(vertices.get());
+	geom->setNormalArray(normals.get());
+	geom->setNormalBinding(osg::Geometry::BIND_OVERALL);
+	geom->setColorArray(colors.get());
+	geom->setColorBinding(osg::Geometry::BIND_OVERALL);
+	geom->addPrimitiveSet(new osg::DrawArrays(
+		GL_TRIANGLE_FAN, 0, 67));
+	osg::ref_ptr<osg::Geode> geode = new osg::Geode;
+	geode->addDrawable(geom.get());
+	return geode.release();
 }
+
 
 int main(int argc, char *argv[])
 {
-	osg::ref_ptr<osg::Vec3Array> ctrlPoints = new osg::Vec3Array;
-#define ADD_POINT(x, y, z) ctrlPoints->push_back(osg::Vec3(x, y, z));
-	ADD_POINT(-3.0f, 0.5f, 0.0f); ADD_POINT(-1.0f, 1.5f, 0.0f);
-	ADD_POINT(-2.0f, 2.0f, 0.0f);
-	ADD_POINT(-3.0f, 0.5f, -1.0f); ADD_POINT(-1.0f, 1.5f, -1.0f);
-	ADD_POINT(-2.0f, 2.0f, -1.0f);
-	ADD_POINT(-3.0f, 0.5f, -2.0f); ADD_POINT(-1.0f, 1.5f, -2.0f);
-	ADD_POINT(-2.0f, 2.0f, -2.0f);
-	osg::ref_ptr<osg::Vec2Array> texcoords = new osg::Vec2Array;
-
-#define ADD_TEXCOORD(x, y) texcoords->push_back(osg::Vec2(x, y));
-
-	ADD_TEXCOORD(0.0f, 0.0f); ADD_TEXCOORD(0.5f, 0.0f);
-	ADD_TEXCOORD(1.0f, 0.0f);
-	ADD_TEXCOORD(0.0f, 0.5f); ADD_TEXCOORD(0.5f, 0.5f);
-	ADD_TEXCOORD(1.0f, 0.5f);
-	ADD_TEXCOORD(0.0f, 1.0f); ADD_TEXCOORD(0.5f, 1.0f);
-	ADD_TEXCOORD(1.0f, 1.0f);
-	osg::ref_ptr<osg::FloatArray> knots = new osg::FloatArray;
-	knots->push_back(0.0f); knots->push_back(0.0f);
-	knots->push_back(0.0f);
-	knots->push_back(1.0f); knots->push_back(1.0f);
-	knots->push_back(1.0f);
-
-	osg::ref_ptr<NurbsSurface> nurbs = new NurbsSurface;
-	nurbs->setVertexArray(ctrlPoints.get());
-	nurbs->setTexCoordArray(texcoords.get());
-	nurbs->setKnots(knots.get(), knots.get());
-	nurbs->setCounts(3, 3);
-	nurbs->setOrders(3, 3);
-
-	osg::ref_ptr<osg::Geode> geode = new osg::Geode;
-	geode->addDrawable(nurbs.get());
-	osg::ref_ptr<osg::Texture2D> texture = new osg::Texture2D(osgDB::readImageFile(
-		"Images/osg256.png"));
-	geode->getOrCreateStateSet()->setTextureAttributeAndModes(
-		0, texture.release());
-	geode->getOrCreateStateSet()->setMode(GL_LIGHTING,
-		osg::StateAttribute::OFF);
+	float hour_time = 10.0f, min_time = 30.0f, sec_time = 0.0f;
+	// Hour needle devides the circle into 12 parts
+	osg::Node* hour = createNeedle(6.0f, 1.0f, -0.02f,
+		osg::Vec4(1.0f, 0.0f, 0.0f, 1.0f), osg::PI * hour_time /
+		6.0f, 3600 * 60.0);
+	// Minute/second needle devides the circle into 60 parts
+	osg::Node* minute = createNeedle(8.0f, 0.6f, -0.04f,
+		osg::Vec4(0.0f, 1.0f, 0.0f, 1.0f), osg::PI * min_time /
+		30.0f, 3600.0);
+	osg::Node* second = createNeedle(10.0f, 0.2f, -0.06f,
+		osg::Vec4(1.0f, 1.0f, 0.0f, 1.0f), osg::PI * sec_time /
+		30.0f, 60.0);
 	osg::ref_ptr<osg::Group> root = new osg::Group;
-	root->addChild(geode.get());
+	root->addChild(hour);
+	root->addChild(minute);
+	root->addChild(second);
+	root->addChild(createFace(10.0f));
+	//Start the viewer to see our clock running :
 	osgViewer::Viewer viewer;
 	viewer.setSceneData(root.get());
 	return viewer.run();
