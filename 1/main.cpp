@@ -5,6 +5,31 @@
 #include <osgDB/ReadFile>
 #include <osgViewer/Viewer>
 
+namespace osgCookBook {
+	osg::AnimationPathCallback* createAnimationPathCallback(
+		float radius, float time)
+	{
+		osg::ref_ptr<osg::AnimationPath> path =
+			new osg::AnimationPath;
+		path->setLoopMode(osg::AnimationPath::LOOP);
+		unsigned int numSamples = 32;
+		float delta_yaw = 2.0f * osg::PI / ((float)numSamples - 1.0f);
+		float delta_time = time / (float)numSamples;
+		for (unsigned int i = 0; i < numSamples; ++i)
+		{
+			float yaw = delta_yaw * (float)i;
+			osg::Vec3 pos(sinf(yaw)*radius, cosf(yaw)*radius, 0.0f);
+			osg::Quat rot(-yaw, osg::Z_AXIS);
+			path->insert(delta_time * (float)i,
+				osg::AnimationPath::ControlPoint(pos, rot));
+		}
+		osg::ref_ptr<osg::AnimationPathCallback> apcb =
+			new osg::AnimationPathCallback;
+		apcb->setAnimationPath(path.get());
+		return apcb.release();
+	}
+}
+
 const unsigned int g_numPoints = 400;
 const float g_halfWidth = 4.0f;
 //The first step is to initialize the ribbon geometry :
@@ -26,7 +51,6 @@ osg::Geometry* createRibbon(const osg::Vec3& colorRGB)
 		(*colors)[i] = osg::Vec4(colorRGB, alpha);
 		(*colors)[i + 1] = osg::Vec4(colorRGB, alpha);
 	}
-	\
 	osg::ref_ptr<osg::Geometry> geom = new osg::Geometry;
 	geom->setDataVariance(osg::Object::DYNAMIC);
 	geom->setUseDisplayList(false);
