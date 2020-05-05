@@ -112,25 +112,29 @@ void TrailerCallback::operator()(osg::Node* node, osg::NodeVisitor* nv)
 
 int main(int argc, char *argv[])
 {
-	osg::Geometry* geometry = createRibbon(osg::Vec3(1.0f, 0.0f,
-		1.0f));
+	osg::Geometry* geometry = createRibbon(osg::Vec3(1.0f, 0.0f, 1.0f));
 	osg::ref_ptr<osg::Geode> geode = new osg::Geode;
 	geode->addDrawable(geometry);
-	geode->getOrCreateStateSet()->setMode(GL_LIGHTING,
-		osg::StateAttribute::OFF);
-	geode->getOrCreateStateSet()->setMode(GL_BLEND,
-		osg::StateAttribute::ON);
-	geode->getOrCreateStateSet()->setRenderingHint(
-		osg::StateSet::TRANSPARENT_BIN);
-	osg::ref_ptr<osg::MatrixTransform> cessna =
-		new osg::MatrixTransform;
+	geode->getOrCreateStateSet()->setMode(GL_LIGHTING, osg::StateAttribute::OFF);
+	geode->getOrCreateStateSet()->setMode(GL_BLEND, osg::StateAttribute::ON);
+	geode->getOrCreateStateSet()->setRenderingHint(osg::StateSet::TRANSPARENT_BIN);
+	osg::ref_ptr<osg::MatrixTransform> cessna = new osg::MatrixTransform;
 	cessna->addChild(osgDB::readNodeFile("cessna.osg.0,0,90.rot"));
 	cessna->addUpdateCallback(osgCookBook::createAnimationPathCallback(50.0f, 6.0f));
 	cessna->addUpdateCallback(new TrailerCallback(geometry));
+
+	osg::ref_ptr<osg::MatrixTransform> trans = new osg::MatrixTransform;
+	trans->setMatrix(osg::Matrix::rotate(osg::Z_AXIS, osg::Y_AXIS));
+	
+	trans->addChild(geode.get());
+	trans->addChild(cessna.get());
 	osg::ref_ptr<osg::Group> root = new osg::Group;
-	root->addChild(geode.get());
-	root->addChild(cessna.get());
+
+	root->addChild(trans.get());
+	//root->addChild(geode.get());
+	//root->addChild(cessna.get());
 	//Start the viewer :
+
 	osgViewer::Viewer viewer;
 	viewer.setSceneData(root.get());
 	return viewer.run();
