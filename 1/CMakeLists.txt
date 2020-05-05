@@ -9,6 +9,9 @@ find_package(OpenSceneGraph REQUIRED COMPONENTS osgDB osgGA osgUtil osgViewer os
 
 include_directories(${OPENSCENEGRAPH_INCLUDE_DIRS})
 
+FIND_PACKAGE(OpenGL)
+INCLUDE_DIRECTORIES(${OPENGL_INCLUDE_DIR})
+
 set(SOURCES
     main.cpp
     )
@@ -17,4 +20,6 @@ add_executable(${PROJECT_NAME} ${SOURCES})
 
 target_link_libraries(${PROJECT_NAME}
     ${OPENSCENEGRAPH_LIBRARIES}
+	${OPENGL_gl_LIBRARY}
+	${OPENGL_glu_LIBRARY}
     )
